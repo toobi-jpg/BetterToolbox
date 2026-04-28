@@ -1,6 +1,6 @@
 <div align="center">
 
-# BetterToolBox
+# BetterToolbox
 
 This plugin acts as a improved and customizable toolbox. It is meant to replace the default Krita toolbox.<br>
 The base of the plugin is created by tubaca, check out the original plugin here: https://github.com/tubaca/ToolKit
