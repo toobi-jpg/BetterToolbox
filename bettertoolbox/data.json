@@ -1,0 +1,351 @@
+{
+  "active_preset": "Default",
+  "bgTransparent": true,
+  "boxRounded": true,
+  "btnRounded": true,
+  "btnSize": 32,
+  "custom_tools": [
+    {
+      "actionName": "wrap_around_mode",
+      "category": "Vector",
+      "icon": "wrap_around_mode",
+      "isMain": "0",
+      "toolName": "Wrap Around Mode"
+    },
+    {
+      "actionName": "VisionMLInpaintTool",
+      "category": "Fill",
+      "icon": "VisionMLInpaintTool",
+      "isMain": "0",
+      "toolName": "Smart Fill Tool"
+    },
+    {
+      "actionName": "wrap_around_v_axis",
+      "category": "Marquee",
+      "icon": "wrap_around_v_axis",
+      "isMain": "0",
+      "toolName": "Wrap Around Vertically"
+    },
+    {
+      "actionName": "SelectSegmentFromPointTool",
+      "category": "Wand",
+      "icon": "SelectSegmentFromPointTool",
+      "isMain": "0",
+      "toolName": "Segment Selection from Point"
+    },
+    {
+      "actionName": "SelectSegmentFromRectTool",
+      "category": "Wand",
+      "icon": "SelectSegmentFromRectTool",
+      "isMain": "0",
+      "toolName": "Segment Selection from Box"
+    },
+    {
+      "actionName": "erase_action",
+      "category": "Erase",
+      "icon": "erase_action",
+      "isMain": "1",
+      "toolName": "Set eraser mode"
+    },
+    {
+      "actionName": "ZoomTool",
+      "category": "Zoom",
+      "icon": "ZoomTool",
+      "isMain": "1",
+      "toolName": "Zoom Tool"
+    },
+    {
+      "actionName": "show_wg_color_history",
+      "category": "Zoom",
+      "icon": "show_wg_color_history",
+      "isMain": "0",
+      "toolName": "Show color history"
+    },
+    {
+      "actionName": "blur_filters",
+      "category": "test",
+      "icon": "blur_filters",
+      "isMain": "1",
+      "toolName": "Blur"
+    },
+    {
+      "actionName": "zoom_to_fit",
+      "category": "Custom",
+      "icon": "zoom_to_fit",
+      "isMain": "1",
+      "toolName": "Fit to View"
+    },
+    {
+      "actionName": "toggle_layer_visibility",
+      "category": "Custom",
+      "icon": "toggle_layer_visibility",
+      "isMain": "0",
+      "toolName": "Toggle layer visibility"
+    }
+  ],
+  "delayValue": 100,
+  "floating": false,
+  "iconSize": 18,
+  "modern": false,
+  "orientation": "Vertical",
+  "presets": {
+    "Default": [
+      {
+        "actionName": "KritaTransform/KisToolMove",
+        "category": "Move",
+        "icon": "krita_tool_move",
+        "isMain": "1",
+        "toolName": "Move Tool"
+      },
+      {
+        "actionName": "KisToolTransform",
+        "category": "Move",
+        "icon": "krita_tool_transform",
+        "isMain": "0",
+        "toolName": "Transform Tool"
+      },
+      {
+        "actionName": "KisToolSelectRectangular",
+        "category": "Marquee",
+        "icon": "tool_rect_selection",
+        "isMain": "1",
+        "toolName": "Rectangular Selection"
+      },
+      {
+        "actionName": "KisToolSelectElliptical",
+        "category": "Marquee",
+        "icon": "tool_elliptical_selection",
+        "isMain": "0",
+        "toolName": "Elliptical Selection"
+      },
+      {
+        "actionName": "KisToolSelectOutline",
+        "category": "Lasso",
+        "icon": "tool_outline_selection",
+        "isMain": "1",
+        "toolName": "Outline Selection"
+      },
+      {
+        "actionName": "KisToolSelectPolygonal",
+        "category": "Lasso",
+        "icon": "tool_polygonal_selection",
+        "isMain": "0",
+        "toolName": "Polygonal Selection"
+      },
+      {
+        "actionName": "KisToolSelectMagnetic",
+        "category": "Lasso",
+        "icon": "tool_magnetic_selection",
+        "isMain": "0",
+        "toolName": "Magnetic Selection"
+      },
+      {
+        "actionName": "KisToolSelectContiguous",
+        "category": "Wand",
+        "icon": "tool_contiguous_selection",
+        "isMain": "1",
+        "toolName": "Contiguous Selection"
+      },
+      {
+        "actionName": "KisToolSelectSimilar",
+        "category": "Wand",
+        "icon": "tool_similar_selection",
+        "isMain": "0",
+        "toolName": "Similar Selection"
+      },
+      {
+        "actionName": "KisToolCrop",
+        "category": "Crop",
+        "icon": "tool_crop",
+        "isMain": "1",
+        "toolName": "Crop Tool"
+      },
+      {
+        "actionName": "KritaSelected/KisToolColorSampler",
+        "category": "Eyedropper",
+        "icon": "krita_tool_color_sampler",
+        "isMain": "1",
+        "toolName": "Color Sampler"
+      },
+      {
+        "actionName": "KritaShape/KisToolMeasure",
+        "category": "Eyedropper",
+        "icon": "krita_tool_measure",
+        "isMain": "0",
+        "toolName": "Measure Tool"
+      },
+      {
+        "actionName": "KritaShape/KisToolSmartPatch",
+        "category": "Healing",
+        "icon": "krita_tool_smart_patch",
+        "isMain": "1",
+        "toolName": "Smart Patch Tool"
+      },
+      {
+        "actionName": "KritaShape/KisToolBrush",
+        "category": "Brush",
+        "icon": "krita_tool_freehand",
+        "isMain": "1",
+        "toolName": "Freehand Brush"
+      },
+      {
+        "actionName": "KritaShape/KisToolDyna",
+        "category": "Brush",
+        "icon": "krita_tool_dyna",
+        "isMain": "0",
+        "toolName": "Dynamic Brush"
+      },
+      {
+        "actionName": "KritaShape/KisToolMultiBrush",
+        "category": "Brush",
+        "icon": "krita_tool_multihand",
+        "isMain": "0",
+        "toolName": "Multibrush"
+      },
+      {
+        "actionName": "KisToolPencil",
+        "category": "Brush",
+        "icon": "krita_tool_freehandvector",
+        "isMain": "0",
+        "toolName": "Freehand Path"
+      },
+      {
+        "actionName": "erase_action",
+        "category": "Erase",
+        "icon": "erase_action",
+        "isMain": "1",
+        "toolName": "Set eraser mode"
+      },
+      {
+        "actionName": "KritaFill/KisToolFill",
+        "category": "Fill",
+        "icon": "krita_tool_color_fill",
+        "isMain": "1",
+        "toolName": "Fill Tool"
+      },
+      {
+        "actionName": "KritaFill/KisToolGradient",
+        "category": "Fill",
+        "icon": "krita_tool_gradient",
+        "isMain": "0",
+        "toolName": "Gradient Tool"
+      },
+      {
+        "actionName": "KritaShape/KisToolLazyBrush",
+        "category": "Fill",
+        "icon": "krita_tool_lazybrush",
+        "isMain": "0",
+        "toolName": "Colorize Brush"
+      },
+      {
+        "actionName": "KisToolPath",
+        "category": "Pen",
+        "icon": "krita_draw_path",
+        "isMain": "1",
+        "toolName": "Bezier Tool"
+      },
+      {
+        "actionName": "KisToolSelectPath",
+        "category": "Pen",
+        "icon": "tool_path_selection",
+        "isMain": "0",
+        "toolName": "Bezier Selection"
+      },
+      {
+        "actionName": "SvgTextTool",
+        "category": "Text",
+        "icon": "draw-text",
+        "isMain": "1",
+        "toolName": "Text Tool"
+      },
+      {
+        "actionName": "KarbonCalligraphyTool",
+        "category": "Text",
+        "icon": "calligraphy",
+        "isMain": "0",
+        "toolName": "Calligraphy"
+      },
+      {
+        "actionName": "InteractionTool",
+        "category": "PathSelect",
+        "icon": "select",
+        "isMain": "1",
+        "toolName": "Select Shape"
+      },
+      {
+        "actionName": "PathTool",
+        "category": "PathSelect",
+        "icon": "shape_handling",
+        "isMain": "0",
+        "toolName": "Edit Shape Tool"
+      },
+      {
+        "actionName": "KritaShape/KisToolRectangle",
+        "category": "Shape",
+        "icon": "krita_tool_rectangle",
+        "isMain": "1",
+        "toolName": "Rectangle Tool"
+      },
+      {
+        "actionName": "KritaShape/KisToolEllipse",
+        "category": "Shape",
+        "icon": "krita_tool_ellipse",
+        "isMain": "0",
+        "toolName": "Ellipse Tool"
+      },
+      {
+        "actionName": "KisToolPolygon",
+        "category": "Shape",
+        "icon": "krita_tool_polygon",
+        "isMain": "0",
+        "toolName": "Polygon Tool"
+      },
+      {
+        "actionName": "KritaShape/KisToolLine",
+        "category": "Shape",
+        "icon": "krita_tool_line",
+        "isMain": "0",
+        "toolName": "Line Tool"
+      },
+      {
+        "actionName": "KisToolPolyline",
+        "category": "Shape",
+        "icon": "polyline",
+        "isMain": "0",
+        "toolName": "Polyline Tool"
+      },
+      {
+        "actionName": "PanTool",
+        "category": "Navigation",
+        "icon": "tool_pan",
+        "isMain": "1",
+        "toolName": "Pan"
+      },
+      {
+        "actionName": "ToolReferenceImages",
+        "category": "Reference",
+        "icon": "krita_tool_reference_images",
+        "isMain": "1",
+        "toolName": "Reference Image Tool"
+      },
+      {
+        "actionName": "KisAssistantTool",
+        "category": "Reference",
+        "icon": "krita_tool_assistant",
+        "isMain": "0",
+        "toolName": "Assistant Tool"
+      },
+      {
+        "actionName": "ZoomTool",
+        "category": "Zoom",
+        "icon": "tool_zoom",
+        "isMain": "1",
+        "toolName": "Zoom Tool"
+      }
+    ]
+  },
+  "rounded": true,
+  "sizeLocked": true,
+  "spacing": 6,
+  "submenuButton": false
+}
