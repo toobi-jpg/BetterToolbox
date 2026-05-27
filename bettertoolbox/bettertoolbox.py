@@ -3,6 +3,7 @@ from os import path
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
+from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
 from krita import *
 from bettertoolbox.json_class import json_class
 from bettertoolbox import toolbuttons
@@ -105,13 +106,18 @@ class SettingsWidget(QWidget):
         self.tabs = QTabWidget()
         self.tab1 = QWidget()
         self.tab2 = QWidget()
+        self.tab3 = QWidget()
         self.tab1.layout = QVBoxLayout(self.tab1)
         self.tab1.layout.setContentsMargins(6, 6, 6, 6)
         self.tab2.layout = QVBoxLayout(self.tab2)
         self.tab2.layout.setContentsMargins(10, 10, 10, 10)
         self.tab2.layout.setSpacing(6)
+        self.tab3.layout = QVBoxLayout(self.tab3)
+        self.tab3.layout.setContentsMargins(10, 10, 10, 10)
+        self.tab3.layout.setSpacing(6)
         self.tabs.addTab(self.tab1, "Tools")
         self.tabs.addTab(self.tab2, "Layout")
+        self.tabs.addTab(self.tab3, "Behaviour")
         self.category_select = CategorySelect()
         self.tab1.layout.addWidget(self.category_select)
 
@@ -240,6 +246,93 @@ class SettingsWidget(QWidget):
 
         self.tab2.layout.addStretch()
 
+        # ── Behaviour Tab ──
+
+        # ── Submenu Section ──
+        submenu_header = QLabel("Submenu")
+        submenu_header.setStyleSheet("font-weight: bold; font-size: 11px; color: #aaa; padding: 2px 0;")
+        self.tab3.layout.addWidget(submenu_header)
+
+        self.longPressCheckbox = QCheckBox(i18n("Activate submenu by long pressing on tool category"))
+        self.longPressCheckbox.setStyleSheet("font-size: 11px;")
+        self.longPressCheckbox.setChecked(data.get("longPressSubmenu", False))
+        self.tab3.layout.addWidget(self.longPressCheckbox)
+
+        longpress_hint = QLabel(i18n("When enabled, press and hold a tool button to open its submenu.\nUseful for pen tablet workflows where right-clicking is difficult."))
+        longpress_hint.setStyleSheet("color: #666; font-size: 10px; font-style: italic; padding: 4px 0 0 18px;")
+        longpress_hint.setWordWrap(True)
+        self.tab3.layout.addWidget(longpress_hint)
+
+        # Long Press Delay
+        delay_row = QHBoxLayout()
+        delay_row.setContentsMargins(18, 4, 0, 0)
+        delay_lbl = QLabel(i18n("Hold duration"))
+        delay_lbl.setStyleSheet("font-size: 11px;")
+        self.longPressDelaySlider = QSlider(Qt.Horizontal)
+        self.longPressDelaySlider.setRange(2, 10)
+        self.longPressDelaySlider.setSingleStep(1)
+        self.longPressDelaySlider.setValue(data.get("longPressDelay", 400) // 100)
+        self.longPressDelayLabel = QLabel(f'{self.longPressDelaySlider.value() * 100}ms')
+        self.longPressDelayLabel.setMinimumWidth(36)
+        self.longPressDelayLabel.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.longPressDelayLabel.setStyleSheet("font-size: 10px; color: #888;")
+        self.longPressDelaySlider.valueChanged.connect(
+            lambda v: self.longPressDelayLabel.setText(f"{v * 100}ms")
+        )
+        delay_row.addWidget(delay_lbl)
+        delay_row.addWidget(self.longPressDelaySlider, 1)
+        delay_row.addWidget(self.longPressDelayLabel)
+        self.longPressDelayWidget = QWidget()
+        self.longPressDelayWidget.setLayout(delay_row)
+        self.tab3.layout.addWidget(self.longPressDelayWidget)
+
+        # Enable/disable delay slider based on checkbox
+        self.longPressDelayWidget.setEnabled(self.longPressCheckbox.isChecked())
+        self.longPressCheckbox.toggled.connect(self.longPressDelayWidget.setEnabled)
+
+        self.swapSubToolCheckbox = QCheckBox(i18n("Remember last used sub-tool per category"))
+        self.swapSubToolCheckbox.setStyleSheet("font-size: 11px;")
+        self.swapSubToolCheckbox.setChecked(data.get("swapSubTool", True))
+        self.tab3.layout.addWidget(self.swapSubToolCheckbox)
+
+        swap_hint = QLabel(i18n("When enabled, selecting a sub-tool from the submenu makes it\nthe visible button for that category."))
+        swap_hint.setStyleSheet("color: #666; font-size: 10px; font-style: italic; padding: 4px 0 0 18px;")
+        swap_hint.setWordWrap(True)
+        self.tab3.layout.addWidget(swap_hint)
+
+        self.autoUpdateCheckbox = QCheckBox(i18n("Auto update plugin on startup"))
+        self.autoUpdateCheckbox.setStyleSheet("font-size: 11px;")
+        self.autoUpdateCheckbox.setChecked(data.get("autoUpdate", True))
+        self.tab3.layout.addWidget(self.autoUpdateCheckbox)
+
+        update_hint = QLabel(i18n("When enabled, the plugin checks for updates on startup and prompts to install them."))
+        update_hint.setStyleSheet("color: #666; font-size: 10px; font-style: italic; padding: 4px 0 0 18px;")
+        update_hint.setWordWrap(True)
+        self.tab3.layout.addWidget(update_hint)
+
+        # ── Separator ──
+        sep_beh = QFrame()
+        sep_beh.setFrameShape(QFrame.HLine)
+        sep_beh.setStyleSheet("color: rgba(255,255,255,15);")
+        self.tab3.layout.addWidget(sep_beh)
+
+        # ── Tooltips Section ──
+        tooltip_header = QLabel("Tooltips")
+        tooltip_header.setStyleSheet("font-weight: bold; font-size: 11px; color: #aaa; padding: 2px 0;")
+        self.tab3.layout.addWidget(tooltip_header)
+
+        self.showShortcutsCheckbox = QCheckBox(i18n("Show keyboard shortcuts in tooltips"))
+        self.showShortcutsCheckbox.setStyleSheet("font-size: 11px;")
+        self.showShortcutsCheckbox.setChecked(data.get("showShortcuts", True))
+        self.tab3.layout.addWidget(self.showShortcutsCheckbox)
+
+        shortcut_hint = QLabel(i18n("Displays the assigned keyboard shortcut next to each tool name."))
+        shortcut_hint.setStyleSheet("color: #666; font-size: 10px; font-style: italic; padding: 4px 0 0 18px;")
+        shortcut_hint.setWordWrap(True)
+        self.tab3.layout.addWidget(shortcut_hint)
+
+        self.tab3.layout.addStretch()
+
         self.layout.addWidget(self.tabs)
 
         # ── Footer ──
@@ -315,7 +408,12 @@ class SettingsWidget(QWidget):
             "btnSize": self.btnSizeSlider.value(),
             "sizeLocked": self.lockBtn.isChecked(),
             "spacing": self.spacingSlider.value(),
-            "orientation": "Vertical" if self.verticalRadio.isChecked() else "Horizontal"
+            "orientation": "Vertical" if self.verticalRadio.isChecked() else "Horizontal",
+            "longPressSubmenu": self.longPressCheckbox.isChecked(),
+            "longPressDelay": self.longPressDelaySlider.value() * 100,
+            "swapSubTool": self.swapSubToolCheckbox.isChecked(),
+            "showShortcuts": self.showShortcutsCheckbox.isChecked(),
+            "autoUpdate": self.autoUpdateCheckbox.isChecked()
         })
         from bettertoolbox import toolbuttons
         toolbuttons.load_tool_list()
@@ -501,6 +599,7 @@ class bettertoolbox(QDockWidget):
         self.topLevelChanged.connect(self.on_float_changed)
         self.dockLocationChanged.connect(self.on_dock_location_changed)
         QTimer.singleShot(0, self.activate_layout.emit)
+        QTimer.singleShot(1000, self.check_for_updates)
 
     def on_dock_location_changed(self, area):
         self.setupLayout()
@@ -530,28 +629,6 @@ class bettertoolbox(QDockWidget):
             for btn in self.tools_container.findChildren(QToolButton):
                 btn.setStyleSheet("")
         self.setupLayout()
-
-    def eventFilter(self, obj, event):
-        if self.isFloating() and isinstance(obj, QToolButton) and self.tools_container.isAncestorOf(obj):
-            if event.type() == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
-                self._drag_start_pos = event.globalPos()
-                self._drag_timer.start()
-                self._is_dragging = False
-            elif event.type() == QEvent.MouseMove and self._drag_start_pos is not None:
-                if self._is_dragging:
-                    delta = event.globalPos() - self._drag_start_pos
-                    self.move(self.pos() + delta)
-                    self._drag_start_pos = event.globalPos()
-                    return True
-            elif event.type() == QEvent.MouseButtonRelease:
-                was_dragging = self._is_dragging
-                self._drag_timer.stop()
-                self._drag_start_pos = None
-                self._is_dragging = False
-                if was_dragging:
-                    self._check_dock_proximity()
-                    return True
-        return super().eventFilter(obj, event)
 
     def _start_drag(self):
         if self._drag_start_pos is not None:
@@ -590,6 +667,9 @@ class bettertoolbox(QDockWidget):
             if categoryName not in category_dictionary.categories:
                 return
             category = category_dictionary.categories[categoryName]
+            data = jsonMethod.loadJSON()
+            show_shortcuts = data.get("showShortcuts", True)
+            swap_sub_tool = data.get("swapSubTool", True)
             for key in category.ToolButtons:
                 toolBtn = category.ToolButtons[key]
                 toolIcon = toolBtn.icon()
@@ -607,7 +687,7 @@ class bettertoolbox(QDockWidget):
                 toolAction = QAction(toolIcon, toolText, self)
                 try:
                     krita_action = Application.action(toolName)
-                    if krita_action:
+                    if krita_action and show_shortcuts:
                         toolShortcut = krita_action.shortcut().toString()
                         toolAction.setShortcut(toolShortcut)
                 except Exception:
@@ -615,7 +695,8 @@ class bettertoolbox(QDockWidget):
                 toolAction.setObjectName(toolName)
                 toolAction.setParent(subMenu.parent_btn)
                 toolAction.triggered.connect(self.activateTool)
-                toolAction.triggered.connect(self.swapToolButton)
+                if swap_sub_tool:
+                    toolAction.triggered.connect(self.swapToolButton)
                 subMenu.addAction(toolAction)
         else:
             for action in subMenu.actions():
@@ -817,6 +898,8 @@ class bettertoolbox(QDockWidget):
                 tb.customContextMenuRequested.connect(
                     lambda pos, btn=tb: btn._subMenu.exec_(btn.mapToGlobal(pos))
                 )
+                self._setup_long_press(tb)
+                self._update_tooltip(tb, data)
             else:
                 tb.hide()
 
@@ -880,6 +963,169 @@ class bettertoolbox(QDockWidget):
     def _release_max_height(self):
         self.setMaximumHeight(16777215)
         self.widget.setMaximumHeight(16777215)
+
+    def _setup_long_press(self, tb):
+        """Attach a long-press timer to a tool button for submenu activation."""
+        if hasattr(tb, '_lp_timer'):
+            tb._lp_timer.stop()
+            tb._lp_timer.deleteLater()
+
+        timer = QTimer(tb)
+        timer.setSingleShot(True)
+        timer.timeout.connect(lambda btn=tb: self._on_long_press(btn))
+        tb._lp_timer = timer
+        tb._lp_active = False
+
+    def _on_long_press(self, btn):
+        """Show submenu if long-press-submenu is enabled."""
+        data = jsonMethod.loadJSON()
+        if not data.get("longPressSubmenu", False):
+            return
+        if hasattr(btn, '_subMenu') and btn._subMenu:
+            btn._lp_active = True
+            btn._subMenu.exec_(btn.mapToGlobal(QPoint(btn.width(), 0)))
+
+    def _update_tooltip(self, tb, data=None):
+        """Update tool button tooltip, optionally appending its keyboard shortcut."""
+        base_name = tb.toolName
+        if data is None:
+            data = jsonMethod.loadJSON()
+        if data.get("showShortcuts", True):
+            try:
+                krita_action = Application.action(tb.actionName)
+                if krita_action:
+                    shortcut = krita_action.shortcut().toString()
+                    if shortcut:
+                        tb.setToolTip(f"{i18n(base_name)}  [{shortcut}]")
+                        return
+            except Exception:
+                pass
+        tb.setToolTip(i18n(base_name))
+
+    def check_for_updates(self):
+        data = jsonMethod.loadJSON()
+        if not data.get("autoUpdate", True):
+            return
+        self.nam = QNetworkAccessManager(self)
+        self.nam.finished.connect(self.on_update_check_finished)
+        url = QUrl("https://raw.githubusercontent.com/toobi-jpg/BetterToolbox/main/bettertoolbox/version.json")
+        self.nam.get(QNetworkRequest(url))
+
+    def on_update_check_finished(self, reply):
+        if reply.error() == QNetworkReply.NoError:
+            try:
+                response = json.loads(bytes(reply.readAll()).decode('utf-8'))
+                remote_version = response.get("version", "1.0.0")
+                local_version = "1.1.0"
+                if self.is_newer_version(local_version, remote_version):
+                    res = QMessageBox.question(
+                        self,
+                        i18n("Update Available"),
+                        i18n(f"A new version of BetterToolbox ({remote_version}) is available. Would you like to update now?"),
+                        QMessageBox.Yes | QMessageBox.No
+                    )
+                    if res == QMessageBox.Yes:
+                        self.start_download()
+            except Exception:
+                pass
+        reply.deleteLater()
+
+    def is_newer_version(self, local, remote):
+        try:
+            l_parts = [int(x) for x in local.split('.')]
+            r_parts = [int(x) for x in remote.split('.')]
+            return r_parts > l_parts
+        except Exception:
+            return remote != local
+
+    def start_download(self):
+        self.download_nam = QNetworkAccessManager(self)
+        self.download_nam.finished.connect(self.on_download_finished)
+        url = QUrl("https://github.com/toobi-jpg/BetterToolbox/archive/refs/heads/main.zip")
+        self.download_nam.get(QNetworkRequest(url))
+
+    def on_download_finished(self, reply):
+        if reply.error() == QNetworkReply.NoError:
+            self.install_update(reply.readAll())
+        else:
+            QMessageBox.critical(self, i18n("Update Failed"), i18n("Failed to download the update."))
+        reply.deleteLater()
+
+    def install_update(self, zip_data):
+        try:
+            import io
+            import zipfile
+            from krita import Krita
+            resource_path = Krita.instance().readSetting("", "resourcesPath", "")
+            if not resource_path:
+                resource_path = QStandardPaths.writableLocation(QStandardPaths.AppDataLocation)
+            pykrita_path = path.join(resource_path, "pykrita")
+            if not path.exists(pykrita_path):
+                QMessageBox.critical(self, i18n("Update Failed"), i18n("Could not locate Krita's pykrita directory."))
+                return
+            zip_file = zipfile.ZipFile(io.BytesIO(bytes(zip_data)))
+            root_dir = zip_file.namelist()[0].split('/')[0] + '/'
+            for member in zip_file.namelist():
+                if member.startswith(root_dir):
+                    rel_path = member[len(root_dir):]
+                    if not rel_path:
+                        continue
+                    if rel_path.startswith("bettertoolbox/") or rel_path == "bettertoolbox.desktop":
+                        dest_path = path.join(pykrita_path, rel_path)
+                        if member.endswith('/'):
+                            import os
+                            os.makedirs(dest_path, exist_ok=True)
+                        else:
+                            import os
+                            os.makedirs(path.dirname(dest_path), exist_ok=True)
+                            with open(dest_path, "wb") as f:
+                                f.write(zip_file.read(member))
+            QMessageBox.information(
+                self,
+                i18n("Update Complete"),
+                i18n("BetterToolbox has been updated to the latest version. Please restart Krita to apply changes.")
+            )
+        except Exception as e:
+            QMessageBox.critical(self, i18n("Update Failed"), i18n(f"Error extracting update: {str(e)}"))
+
+    def eventFilter(self, obj, event):
+        # Long-press detection for tool buttons
+        if isinstance(obj, ToolButton) and self.tools_container.isAncestorOf(obj):
+            if event.type() == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
+                data = jsonMethod.loadJSON()
+                if data.get("longPressSubmenu", False) and hasattr(obj, '_lp_timer'):
+                    delay = data.get("longPressDelay", 400)
+                    obj._lp_timer.setInterval(delay)
+                    obj._lp_timer.start()
+                    obj._lp_active = False
+            elif event.type() == QEvent.MouseButtonRelease and event.button() == Qt.LeftButton:
+                if hasattr(obj, '_lp_timer'):
+                    obj._lp_timer.stop()
+                    if obj._lp_active:
+                        obj._lp_active = False
+                        return True  # Swallow the release so it doesn't activate the tool
+
+        # Floating drag handling — press and hold the settings button to move the toolbox
+        if self.isFloating() and obj == self.settings_btn:
+            if event.type() == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
+                self._drag_start_pos = event.globalPos()
+                self._drag_timer.start()
+                self._is_dragging = False
+            elif event.type() == QEvent.MouseMove and self._drag_start_pos is not None:
+                if self._is_dragging:
+                    delta = event.globalPos() - self._drag_start_pos
+                    self.move(self.pos() + delta)
+                    self._drag_start_pos = event.globalPos()
+                    return True
+            elif event.type() == QEvent.MouseButtonRelease:
+                was_dragging = self._is_dragging
+                self._drag_timer.stop()
+                self._drag_start_pos = None
+                self._is_dragging = False
+                if was_dragging:
+                    self._check_dock_proximity()
+                    return True
+        return super().eventFilter(obj, event)
 
     def canvasChanged(self, canvas):
         pass

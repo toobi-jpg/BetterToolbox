@@ -465,6 +465,7 @@ class ToolPanel(QToolButton):
                     self.tool_btn.setIcon(QIcon())
                     self.tool_btn._load_icon()
                     self.setIcon(self.tool_btn.icon())
+            dialog.deleteLater()
         menu.deleteLater()
     def mouseMoveEvent(self, event):
         if event.buttons() != Qt.LeftButton:

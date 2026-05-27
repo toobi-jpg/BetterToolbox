@@ -34,14 +34,14 @@ Change the button size, icon size and button spacing.
 ## Install
 
 Start Krita and go through the main menu Tools -> Scripts -> Import Python Plugin from Web.
-Paste this repository url in the url box: https://github.com/toobi-jpeg/bettertoolbox.git
+Paste this repository url in the url box: https://github.com/toobi-jpg/BetterToolbox/archive/refs/heads/main.zip
 Enable the plugin in Settings > Configure Krita > Python Plugin Manager and restart Krita.
 Enable the docker in Settings -> Dockers -> BetterToolBox and Disable the default Krita Toolbox.
 
 ## Use
 
-Right click a tool to open the subtools menu.
-Left click, hold and drag any tool to move the toolbox around when in floating mode.
+Right click a tool to open the subtools menu or enable long press to open the subtools menu.
+Left click, hold and drag the settings button to move the toolbox around when in floating mode.
 
 ## Uninstall
 
