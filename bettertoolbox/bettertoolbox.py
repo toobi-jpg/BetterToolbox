@@ -1009,14 +1009,27 @@ class bettertoolbox(QDockWidget):
         self.nam = QNetworkAccessManager(self)
         self.nam.finished.connect(self.on_update_check_finished)
         url = QUrl("https://raw.githubusercontent.com/toobi-jpg/BetterToolbox/main/bettertoolbox/version.json")
-        self.nam.get(QNetworkRequest(url))
+        req = QNetworkRequest(url)
+        req.setAttribute(QNetworkRequest.FollowRedirectsAttribute, True)
+        self.nam.get(req)
 
     def on_update_check_finished(self, reply):
-        if reply.error() == QNetworkReply.NoError:
+        status_code = reply.attribute(QNetworkRequest.HttpStatusCodeAttribute)
+        if reply.error() == QNetworkReply.NoError and status_code in (200, 201):
             try:
                 response = json.loads(bytes(reply.readAll()).decode('utf-8'))
                 remote_version = response.get("version", "1.0.0")
+                
+                # Load local version dynamically from version.json
                 local_version = "1.1.0"
+                try:
+                    fileDir = path.dirname(path.realpath(__file__))
+                    version_path = path.join(fileDir, 'version.json')
+                    with open(version_path, 'r') as f:
+                        local_version = json.load(f).get("version", "1.1.0")
+                except Exception:
+                    pass
+                
                 if self.is_newer_version(local_version, remote_version):
                     res = QMessageBox.question(
                         self,
@@ -1042,10 +1055,13 @@ class bettertoolbox(QDockWidget):
         self.download_nam = QNetworkAccessManager(self)
         self.download_nam.finished.connect(self.on_download_finished)
         url = QUrl("https://github.com/toobi-jpg/BetterToolbox/archive/refs/heads/main.zip")
-        self.download_nam.get(QNetworkRequest(url))
+        req = QNetworkRequest(url)
+        req.setAttribute(QNetworkRequest.FollowRedirectsAttribute, True)
+        self.download_nam.get(req)
 
     def on_download_finished(self, reply):
-        if reply.error() == QNetworkReply.NoError:
+        status_code = reply.attribute(QNetworkRequest.HttpStatusCodeAttribute)
+        if reply.error() == QNetworkReply.NoError and status_code in (200, 201):
             self.install_update(reply.readAll())
         else:
             QMessageBox.critical(self, i18n("Update Failed"), i18n("Failed to download the update."))
@@ -1072,6 +1088,28 @@ class bettertoolbox(QDockWidget):
                         continue
                     if rel_path.startswith("bettertoolbox/") or rel_path == "bettertoolbox.desktop":
                         dest_path = path.join(pykrita_path, rel_path)
+                        if rel_path == "bettertoolbox/data.json" and path.exists(dest_path):
+                            try:
+                                with open(dest_path, 'r', encoding='utf-8') as f:
+                                    user_settings = json.load(f)
+                                zip_data_str = zip_file.read(member).decode('utf-8')
+                                default_settings = json.loads(zip_data_str)
+                                merged = False
+                                for key, val in default_settings.items():
+                                    if key not in user_settings:
+                                        user_settings[key] = val
+                                        merged = True
+                                    elif key == "presets":
+                                        for p_name, p_val in val.items():
+                                            if p_name not in user_settings["presets"]:
+                                                user_settings["presets"][p_name] = p_val
+                                                merged = True
+                                if merged:
+                                    with open(dest_path, 'w', encoding='utf-8') as f:
+                                        json.dump(user_settings, f, indent=4, sort_keys=True)
+                            except Exception:
+                                pass
+                            continue
                         if member.endswith('/'):
                             import os
                             os.makedirs(dest_path, exist_ok=True)
