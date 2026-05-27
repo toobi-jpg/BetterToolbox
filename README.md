@@ -60,7 +60,7 @@ Change the button size, icon size and button spacing.
 ## Install
 
 Start Krita and go through the main menu Tools -> Scripts -> Import Python Plugin from Web.<br>
-Paste this repository url in the url box: [https://github.com/toobi-jpeg/bettertoolbox.git](https://github.com/toobi-jpg/BetterToolbox)<br>
+Paste this repository url in the url box: https://github.com/toobi-jpg/BetterToolbox/archive/refs/heads/main.zip<br>
 Enable the plugin in Settings > Configure Krita > Python Plugin Manager and restart Krita.<br>
 Enable the docker in Settings -> Dockers -> BetterToolBox and Disable the default Krita Toolbox.<br>
 
