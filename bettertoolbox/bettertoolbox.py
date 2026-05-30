@@ -239,6 +239,64 @@ class SettingsWidget(QWidget):
         self.orientationWidget.setLayout(orient_row)
         self.tab2.layout.addWidget(self.orientationWidget)
 
+        # ── Separator ──
+        sep_color = QFrame()
+        sep_color.setFrameShape(QFrame.HLine)
+        sep_color.setStyleSheet("color: rgba(255,255,255,15);")
+        self.tab2.layout.addWidget(sep_color)
+        self.sep_color = sep_color
+
+        # ── Color Section ──
+        color_header = QLabel("Color")
+        color_header.setStyleSheet("font-weight: bold; font-size: 11px; color: #aaa; padding: 2px 0;")
+        self.tab2.layout.addWidget(color_header)
+        self.color_header = color_header
+
+        self.colorModeGroup = QButtonGroup(self)
+        self.themeRadio = QRadioButton(i18n("Follow Krita theme"))
+        self.customColorRadio = QRadioButton(i18n("Custom color"))
+        self.themeRadio.setStyleSheet("font-size: 11px;")
+        self.customColorRadio.setStyleSheet("font-size: 11px;")
+        self.colorModeGroup.addButton(self.themeRadio)
+        self.colorModeGroup.addButton(self.customColorRadio)
+
+        color_mode = data.get("colorMode", "theme")
+        if color_mode == "custom":
+            self.customColorRadio.setChecked(True)
+        else:
+            self.themeRadio.setChecked(True)
+
+        color_radio_row = QHBoxLayout()
+        color_radio_row.setContentsMargins(0, 0, 0, 0)
+        color_radio_row.addWidget(self.themeRadio)
+        color_radio_row.addWidget(self.customColorRadio)
+        color_radio_row.addStretch()
+        self.colorRadioWidget = QWidget()
+        self.colorRadioWidget.setLayout(color_radio_row)
+        self.tab2.layout.addWidget(self.colorRadioWidget)
+
+        # Custom color picker row
+        picker_row = QHBoxLayout()
+        picker_row.setContentsMargins(18, 4, 0, 0)
+        picker_lbl = QLabel(i18n("Button color"))
+        picker_lbl.setStyleSheet("font-size: 11px;")
+        self._custom_color = QColor(data.get("customColor", "#323232"))
+        self.colorPickerBtn = QPushButton()
+        self.colorPickerBtn.setFixedSize(60, 24)
+        self.colorPickerBtn.setCursor(Qt.PointingHandCursor)
+        self._update_color_preview()
+        self.colorPickerBtn.clicked.connect(self._pick_color)
+        picker_row.addWidget(picker_lbl)
+        picker_row.addWidget(self.colorPickerBtn)
+        picker_row.addStretch()
+        self.colorPickerWidget = QWidget()
+        self.colorPickerWidget.setLayout(picker_row)
+        self.tab2.layout.addWidget(self.colorPickerWidget)
+
+        # Show/hide picker based on radio selection
+        self.colorPickerWidget.setVisible(self.customColorRadio.isChecked())
+        self.customColorRadio.toggled.connect(self.colorPickerWidget.setVisible)
+
         self.floatingNotice = QLabel(i18n("⬆ Floating options appear when the toolbar is undocked."))
         self.floatingNotice.setStyleSheet("color: #666; font-size: 10px; font-style: italic; padding: 4px 0;")
         self.floatingNotice.setWordWrap(True)
@@ -300,7 +358,7 @@ class SettingsWidget(QWidget):
         swap_hint.setWordWrap(True)
         self.tab3.layout.addWidget(swap_hint)
 
-        self.autoUpdateCheckbox = QCheckBox(i18n("Auto update plugin on startup"))
+        self.autoUpdateCheckbox = QCheckBox(i18n("Check for plugin updates on startup"))
         self.autoUpdateCheckbox.setStyleSheet("font-size: 11px;")
         self.autoUpdateCheckbox.setChecked(data.get("autoUpdate", True))
         self.tab3.layout.addWidget(self.autoUpdateCheckbox)
@@ -315,6 +373,27 @@ class SettingsWidget(QWidget):
         sep_beh.setFrameShape(QFrame.HLine)
         sep_beh.setStyleSheet("color: rgba(255,255,255,15);")
         self.tab3.layout.addWidget(sep_beh)
+
+        # ── Floating Section ──
+        float_beh_header = QLabel("Floating")
+        float_beh_header.setStyleSheet("font-weight: bold; font-size: 11px; color: #aaa; padding: 2px 0;")
+        self.tab3.layout.addWidget(float_beh_header)
+
+        self.followWindowCheckbox = QCheckBox(i18n("Follow Krita window position when floating"))
+        self.followWindowCheckbox.setStyleSheet("font-size: 11px;")
+        self.followWindowCheckbox.setChecked(data.get("followKritaWindow", False))
+        self.tab3.layout.addWidget(self.followWindowCheckbox)
+
+        follow_hint = QLabel(i18n("When enabled, the floating toolbar maintains its position relative to\nthe Krita window. Moving Krita to another monitor will bring the toolbar along."))
+        follow_hint.setStyleSheet("color: #666; font-size: 10px; font-style: italic; padding: 4px 0 0 18px;")
+        follow_hint.setWordWrap(True)
+        self.tab3.layout.addWidget(follow_hint)
+
+        # ── Separator ──
+        sep_beh2 = QFrame()
+        sep_beh2.setFrameShape(QFrame.HLine)
+        sep_beh2.setStyleSheet("color: rgba(255,255,255,15);")
+        self.tab3.layout.addWidget(sep_beh2)
 
         # ── Tooltips Section ──
         tooltip_header = QLabel("Tooltips")
@@ -389,12 +468,33 @@ class SettingsWidget(QWidget):
             self.iconSizeLabel.setText(f"{new_icon}px")
             self.iconSizeSlider.blockSignals(False)
 
+    def _update_color_preview(self):
+        """Update the color picker button to show the current custom color."""
+        c = self._custom_color
+        self.colorPickerBtn.setStyleSheet(
+            f"background-color: {c.name()}; border: 1px solid #4a4a4a; border-radius: 3px;"
+        )
+
+    def _pick_color(self):
+        """Open a color dialog to choose a custom toolbar color."""
+        color = QColorDialog.getColor(
+            self._custom_color, self, i18n("Choose Toolbar Color"),
+            QColorDialog.ShowAlphaChannel
+        )
+        if color.isValid():
+            self._custom_color = color
+            self._update_color_preview()
+
     def update_visibility(self):
         is_float = self.docker.isFloating()
         show_float = is_float
         self.float_header.setVisible(show_float)
         self.orientationWidget.setVisible(show_float)
         self.spacingWidget.setVisible(show_float)
+        self.sep_color.setVisible(show_float)
+        self.color_header.setVisible(show_float)
+        self.colorRadioWidget.setVisible(show_float)
+        self.colorPickerWidget.setVisible(show_float and self.customColorRadio.isChecked())
         self.floatingNotice.setVisible(not show_float)
         self.btnSizeSlider.setEnabled(show_float)
         self.lockBtn.setEnabled(show_float)
@@ -413,7 +513,10 @@ class SettingsWidget(QWidget):
             "longPressDelay": self.longPressDelaySlider.value() * 100,
             "swapSubTool": self.swapSubToolCheckbox.isChecked(),
             "showShortcuts": self.showShortcutsCheckbox.isChecked(),
-            "autoUpdate": self.autoUpdateCheckbox.isChecked()
+            "autoUpdate": self.autoUpdateCheckbox.isChecked(),
+            "followKritaWindow": self.followWindowCheckbox.isChecked(),
+            "colorMode": "custom" if self.customColorRadio.isChecked() else "theme",
+            "customColor": self._custom_color.name(QColor.HexArgb)
         })
         from bettertoolbox import toolbuttons
         toolbuttons.load_tool_list()
@@ -526,6 +629,86 @@ class SDialog(QDialog):
         self.settings_widget.update_visibility()
         return super().exec_()
 
+class UpdateDialog(QDialog):
+    def __init__(self, parent, remote_version, release_notes):
+        super().__init__(parent)
+        self.setWindowTitle(i18n("Update Available"))
+        self.setWindowModality(Qt.ApplicationModal)
+        self.setMinimumSize(520, 380)
+        self.resize(550, 420)
+        
+        self.setStyleSheet("""
+            QDialog {
+                background: #2b2b2b;
+                color: #ddd;
+            }
+            QLabel {
+                color: #ddd;
+            }
+            QTextBrowser {
+                background: #202020;
+                color: #ccc;
+                border: 1px solid #3a3a3a;
+                border-radius: 4px;
+                padding: 8px;
+                font-family: sans-serif;
+            }
+            QPushButton {
+                background-color: #3e3e3e;
+                border: 1px solid #555;
+                border-radius: 4px;
+                color: #ddd;
+                padding: 6px 16px;
+                min-width: 80px;
+            }
+            QPushButton:hover {
+                background-color: #4f4f4f;
+                border-color: #666;
+            }
+            QPushButton:pressed {
+                background-color: #2b2b2b;
+            }
+            QPushButton#updateBtn {
+                background-color: #3a6dae;
+                border-color: #4a7ebe;
+                font-weight: bold;
+            }
+            QPushButton#updateBtn:hover {
+                background-color: #477fc4;
+                border-color: #5b92d6;
+            }
+        """)
+        
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
+        
+        header = QLabel(i18n(f"A new version of BetterToolbox ({remote_version}) is available!"))
+        header.setStyleSheet("font-weight: bold; font-size: 13px; color: #5599dd;")
+        layout.addWidget(header)
+        
+        notes_lbl = QLabel(i18n("Release notes & changes:"))
+        notes_lbl.setStyleSheet("color: #aaa; font-size: 11px;")
+        layout.addWidget(notes_lbl)
+        
+        self.notes_browser = QTextBrowser()
+        self.notes_browser.setPlainText(release_notes)
+        layout.addWidget(self.notes_browser)
+        
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        
+        self.cancel_btn = QPushButton(i18n("Later"))
+        self.cancel_btn.clicked.connect(self.reject)
+        
+        self.update_btn = QPushButton(i18n("Update Now"))
+        self.update_btn.setObjectName("updateBtn")
+        self.update_btn.clicked.connect(self.accept)
+        
+        btn_layout.addWidget(self.cancel_btn)
+        btn_layout.addWidget(self.update_btn)
+        layout.addLayout(btn_layout)
+
 class bettertoolbox(QDockWidget):
     activate_layout = pyqtSignal()
     def __init__(self):
@@ -583,6 +766,10 @@ class bettertoolbox(QDockWidget):
         self._is_dragging = False
         self._applying_styles = False
 
+        # Window-follow tracking state
+        self._krita_window_offset = None
+        self._tracked_qwindow = None
+
         self.installEventFilter(self)
 
         if not toolbuttons.ToolList:
@@ -599,6 +786,7 @@ class bettertoolbox(QDockWidget):
         self.topLevelChanged.connect(self.on_float_changed)
         self.dockLocationChanged.connect(self.on_dock_location_changed)
         QTimer.singleShot(0, self.activate_layout.emit)
+        QTimer.singleShot(500, self._clamp_to_screen)
         QTimer.singleShot(1000, self.check_for_updates)
 
     def on_dock_location_changed(self, area):
@@ -617,6 +805,7 @@ class bettertoolbox(QDockWidget):
         if is_float:
             jsonMethod.update_dict({"modern": True})
         else:
+            self._remove_window_tracker()
             jsonMethod.update_dict({"modern": False, "orientation": "Vertical"})
             # Immediately reset floating-mode state before Krita settles dock geometry
             self.setAttribute(Qt.WA_TranslucentBackground, False)
@@ -731,6 +920,49 @@ class bettertoolbox(QDockWidget):
                 docker.setVisible(not docker.isVisible())
                 break
 
+    def _build_btn_style(self, data):
+        """Build the floating button stylesheet based on color mode setting."""
+        color_mode = data.get("colorMode", "theme")
+
+        if color_mode == "custom":
+            c = QColor(data.get("customColor", "#323232"))
+            r, g, b, a = c.red(), c.green(), c.blue(), c.alpha()
+            # Derive hover (lighter) and checked (darker) variants
+            hover = c.lighter(130)
+            checked = c.darker(130)
+            hr, hg, hb = hover.red(), hover.green(), hover.blue()
+            cr, cg, cb = checked.red(), checked.green(), checked.blue()
+            # Border: slightly darker than base
+            br_c = c.darker(150)
+            br_r, br_g, br_b = br_c.red(), br_c.green(), br_c.blue()
+        else:
+            # Follow Krita theme — read palette colors
+            palette = QApplication.palette()
+            base = palette.color(QPalette.Button)
+            r, g, b = base.red(), base.green(), base.blue()
+            a = 220
+            hover = base.lighter(130)
+            hr, hg, hb = hover.red(), hover.green(), hover.blue()
+            checked = base.darker(120)
+            cr, cg, cb = checked.red(), checked.green(), checked.blue()
+            br_c = base.darker(150)
+            br_r, br_g, br_b = br_c.red(), br_c.green(), br_c.blue()
+
+        return f"""
+            QToolButton {{
+                background-color: rgba({r}, {g}, {b}, {a});
+                border-radius: 4px;
+                border: 1px solid rgba({br_r}, {br_g}, {br_b}, 150);
+                margin: 0px;
+            }}
+            QToolButton:hover {{
+                background-color: rgba({hr}, {hg}, {hb}, 255);
+            }}
+            QToolButton:checked {{
+                background-color: rgba({cr}, {cg}, {cb}, 255);
+            }}
+        """
+
     def apply_floating_styles(self):
         if self._applying_styles:
             return
@@ -759,20 +991,7 @@ class bettertoolbox(QDockWidget):
             self.setAttribute(Qt.WA_TranslucentBackground, True)
             self.widget.layout().setSizeConstraint(QLayout.SetFixedSize)
 
-            btn_style = """
-                QToolButton {
-                    background-color: rgba(50, 50, 50, 220);
-                    border-radius: 4px;
-                    border: 1px solid rgba(20, 20, 20, 150);
-                    margin: 0px;
-                }
-                QToolButton:hover {
-                    background-color: rgba(70, 70, 70, 255);
-                }
-                QToolButton:checked {
-                    background-color: rgba(30, 30, 30, 255);
-                }
-            """
+            btn_style = self._build_btn_style(data)
             for btn in self.tools_container.findChildren(QToolButton):
                 btn.setStyleSheet(btn_style)
             self.toolbox_btn.setStyleSheet(btn_style)
@@ -932,6 +1151,10 @@ class bettertoolbox(QDockWidget):
 
         self._deferred_resize()
 
+        if is_float:
+            QTimer.singleShot(100, self._clamp_to_screen)
+            QTimer.singleShot(150, self._install_window_tracker)
+
     def _deferred_resize(self):
         self.widget.layout().activate()
         if hasattr(self, 'tools_container') and self.tools_container:
@@ -957,12 +1180,137 @@ class bettertoolbox(QDockWidget):
                 QTimer.singleShot(200, self._release_max_width)
 
     def _release_max_width(self):
-        self.setMaximumWidth(16777215)
-        self.widget.setMaximumWidth(16777215)
+        try:
+            self.setMaximumWidth(16777215)
+            self.widget.setMaximumWidth(16777215)
+        except RuntimeError:
+            pass
 
     def _release_max_height(self):
-        self.setMaximumHeight(16777215)
-        self.widget.setMaximumHeight(16777215)
+        try:
+            self.setMaximumHeight(16777215)
+            self.widget.setMaximumHeight(16777215)
+        except RuntimeError:
+            pass
+
+    def _clamp_to_screen(self):
+        """Clamp the floating toolbar so it stays fully within the screen bounds."""
+        try:
+            if not self.isFloating():
+                return
+            if getattr(self, '_is_clamping', False):
+                return
+            self._is_clamping = True
+            try:
+                geo = self.geometry()
+                screen = QApplication.screenAt(geo.center())
+                if not screen:
+                    # Fallback: try the Krita window's screen
+                    main_window = Krita.instance().activeWindow()
+                    if main_window and main_window.qwindow():
+                        wh = main_window.qwindow().windowHandle()
+                        if wh:
+                            screen = wh.screen()
+                if not screen:
+                    screen = QApplication.primaryScreen()
+                if not screen:
+                    return
+                avail = screen.availableGeometry()
+                x = geo.x()
+                y = geo.y()
+                # Clamp right/bottom edges first, then left/top (so toolbar is always reachable)
+                if x + geo.width() > avail.right() + 1:
+                    x = avail.right() + 1 - geo.width()
+                if y + geo.height() > avail.bottom() + 1:
+                    y = avail.bottom() + 1 - geo.height()
+                if x < avail.left():
+                    x = avail.left()
+                if y < avail.top():
+                    y = avail.top()
+                if x != geo.x() or y != geo.y():
+                    self.move(x, y)
+                    self._update_window_offset()
+            finally:
+                self._is_clamping = False
+        except RuntimeError:
+            pass
+
+    def _update_window_offset(self):
+        """Recalculate the offset between the toolbar and the Krita window."""
+        try:
+            if not self.isFloating():
+                self._krita_window_offset = None
+                return
+            main_window = Krita.instance().activeWindow()
+            if main_window and main_window.qwindow():
+                win_pos = main_window.qwindow().pos()
+                self._krita_window_offset = self.pos() - win_pos
+            else:
+                self._krita_window_offset = None
+        except RuntimeError:
+            pass
+
+    def _install_window_tracker(self):
+        """Install an event filter on the Krita main window to track move events."""
+        try:
+            self._remove_window_tracker()
+            data = jsonMethod.loadJSON()
+            if not data.get("followKritaWindow", False):
+                return
+            if not self.isFloating():
+                return
+            main_window = Krita.instance().activeWindow()
+            if main_window and main_window.qwindow():
+                qwin = main_window.qwindow()
+                self._tracked_qwindow = qwin
+                qwin.installEventFilter(self)
+                try:
+                    qwin.destroyed.connect(self._on_tracked_window_destroyed)
+                except (RuntimeError, TypeError):
+                    pass
+                self._update_window_offset()
+        except RuntimeError:
+            pass
+
+    def _remove_window_tracker(self):
+        """Remove the event filter from the tracked Krita window."""
+        try:
+            if self._tracked_qwindow is not None:
+                try:
+                    self._tracked_qwindow.removeEventFilter(self)
+                except RuntimeError:
+                    pass  # Window already deleted
+                try:
+                    self._tracked_qwindow.destroyed.disconnect(self._on_tracked_window_destroyed)
+                except (RuntimeError, TypeError):
+                    pass
+                self._tracked_qwindow = None
+        except RuntimeError:
+            pass
+
+    def _on_tracked_window_destroyed(self):
+        """Handle the tracked Krita window being destroyed."""
+        try:
+            self._tracked_qwindow = None
+            self._krita_window_offset = None
+        except RuntimeError:
+            pass
+
+    def _on_krita_window_moved(self):
+        """Reposition the floating toolbar relative to the Krita window."""
+        try:
+            if not self.isFloating() or self._krita_window_offset is None:
+                return
+            if self._is_dragging:
+                return  # Don't fight the user's drag
+            main_window = Krita.instance().activeWindow()
+            if main_window and main_window.qwindow():
+                win_pos = main_window.qwindow().pos()
+                self.move(win_pos + self._krita_window_offset)
+                self._clamp_to_screen()
+        except RuntimeError:
+            pass
+
 
     def _setup_long_press(self, tb):
         """Attach a long-press timer to a tool button for submenu activation."""
@@ -1003,42 +1351,43 @@ class bettertoolbox(QDockWidget):
         tb.setToolTip(i18n(base_name))
 
     def check_for_updates(self):
-        data = jsonMethod.loadJSON()
-        if not data.get("autoUpdate", True):
-            return
-        self.nam = QNetworkAccessManager(self)
-        self.nam.finished.connect(self.on_update_check_finished)
-        url = QUrl("https://raw.githubusercontent.com/toobi-jpg/BetterToolbox/main/bettertoolbox/version.json")
-        req = QNetworkRequest(url)
-        req.setAttribute(QNetworkRequest.FollowRedirectsAttribute, True)
-        self.nam.get(req)
+        try:
+            data = jsonMethod.loadJSON()
+            if not data.get("autoUpdate", True):
+                return
+            self.nam = QNetworkAccessManager(self)
+            self.nam.finished.connect(self.on_update_check_finished)
+            url = QUrl("https://api.github.com/repos/toobi-jpg/BetterToolbox/releases/latest")
+            req = QNetworkRequest(url)
+            req.setAttribute(QNetworkRequest.FollowRedirectsAttribute, True)
+            req.setRawHeader(b"User-Agent", b"BetterToolbox-Krita-Plugin")
+            self.nam.get(req)
+        except RuntimeError:
+            pass
 
     def on_update_check_finished(self, reply):
         status_code = reply.attribute(QNetworkRequest.HttpStatusCodeAttribute)
         if reply.error() == QNetworkReply.NoError and status_code in (200, 201):
             try:
                 response = json.loads(bytes(reply.readAll()).decode('utf-8'))
-                remote_version = response.get("version", "1.0.0")
+                tag_name = response.get("tag_name", "1.0.0")
+                remote_version = tag_name.lstrip('v')
+                release_notes = response.get("body", "")
                 
                 # Load local version dynamically from version.json
-                local_version = "1.1.0"
+                local_version = "1.1.1"
                 try:
                     fileDir = path.dirname(path.realpath(__file__))
                     version_path = path.join(fileDir, 'version.json')
                     with open(version_path, 'r') as f:
-                        local_version = json.load(f).get("version", "1.1.0")
+                        local_version = json.load(f).get("version", "1.1.1")
                 except Exception:
                     pass
                 
                 if self.is_newer_version(local_version, remote_version):
-                    res = QMessageBox.question(
-                        self,
-                        i18n("Update Available"),
-                        i18n(f"A new version of BetterToolbox ({remote_version}) is available. Would you like to update now?"),
-                        QMessageBox.Yes | QMessageBox.No
-                    )
-                    if res == QMessageBox.Yes:
-                        self.start_download()
+                    dialog = UpdateDialog(self, remote_version, release_notes)
+                    if dialog.exec_() == QDialog.Accepted:
+                        self.start_download(tag_name)
             except Exception:
                 pass
         reply.deleteLater()
@@ -1051,13 +1400,17 @@ class bettertoolbox(QDockWidget):
         except Exception:
             return remote != local
 
-    def start_download(self):
-        self.download_nam = QNetworkAccessManager(self)
-        self.download_nam.finished.connect(self.on_download_finished)
-        url = QUrl("https://github.com/toobi-jpg/BetterToolbox/archive/refs/heads/main.zip")
-        req = QNetworkRequest(url)
-        req.setAttribute(QNetworkRequest.FollowRedirectsAttribute, True)
-        self.download_nam.get(req)
+    def start_download(self, tag_name="main"):
+        try:
+            self.download_nam = QNetworkAccessManager(self)
+            self.download_nam.finished.connect(self.on_download_finished)
+            # Fetch the tagged release source code archive
+            url = QUrl(f"https://github.com/toobi-jpg/BetterToolbox/archive/refs/tags/{tag_name}.zip")
+            req = QNetworkRequest(url)
+            req.setAttribute(QNetworkRequest.FollowRedirectsAttribute, True)
+            self.download_nam.get(req)
+        except RuntimeError:
+            pass
 
     def on_download_finished(self, reply):
         status_code = reply.attribute(QNetworkRequest.HttpStatusCodeAttribute)
@@ -1127,6 +1480,12 @@ class bettertoolbox(QDockWidget):
             QMessageBox.critical(self, i18n("Update Failed"), i18n(f"Error extracting update: {str(e)}"))
 
     def eventFilter(self, obj, event):
+        # Handle own resize/show events to clamp floating toolbar to screen bounds dynamically
+        if obj == self:
+            if event.type() in (QEvent.Resize, QEvent.Show):
+                if self.isFloating():
+                    QTimer.singleShot(0, self._clamp_to_screen)
+
         # Long-press detection for tool buttons
         if isinstance(obj, ToolButton) and self.tools_container.isAncestorOf(obj):
             if event.type() == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
@@ -1162,7 +1521,15 @@ class bettertoolbox(QDockWidget):
                 self._is_dragging = False
                 if was_dragging:
                     self._check_dock_proximity()
+                    self._clamp_to_screen()
+                    self._update_window_offset()
                     return True
+
+        # Track Krita main window moves for follow-window feature
+        if self._tracked_qwindow is not None and obj == self._tracked_qwindow:
+            if event.type() == QEvent.Move:
+                self._on_krita_window_moved()
+
         return super().eventFilter(obj, event)
 
     def canvasChanged(self, canvas):
