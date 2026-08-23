@@ -426,7 +426,7 @@ class ToolPanel(QToolButton):
         super().__init__()
         self.tool_btn = tool_btn
         self.setIcon(tool_btn.icon())
-        self.setToolTip(tool_btn.toolName)
+        self.setToolTip(tool_btn.displayName())
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.show_context_menu)
     def showEvent(self, event):

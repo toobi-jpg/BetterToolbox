@@ -1,8 +1,18 @@
 from PyQt5.QtWidgets import QToolButton
 from PyQt5.QtGui import QPalette, QColor
-from PyQt5.QtCore import QSize
+from PyQt5.QtCore import QSize, QEvent
 from krita import *
 from bettertoolbox.json_class import json_class
+def krita_display_name(actionName, fallbackName):
+    try:
+        action = Application.action(actionName)
+        if action:
+            text = action.text().replace("&", "").strip()
+            if text:
+                return text
+    except Exception:
+        pass
+    return i18n(fallbackName)
 class ToolButton(QToolButton):
     def __init__(self, actionName, toolName, icon, category, isMain):
         super().__init__()
@@ -19,7 +29,28 @@ class ToolButton(QToolButton):
         self.setAutoRaise(True)
         self._load_icon()
         self.setObjectName(self.actionName)
-        self.setToolTip(i18n(self.toolName))
+        self.updateToolTip()
+    def displayName(self):
+        return krita_display_name(self.actionName, self.toolName)
+    def updateToolTip(self, showShortcut=None):
+        if showShortcut is None:
+            showShortcut = json_class().loadJSON().get("showShortcuts", True)
+        name = self.displayName()
+        if showShortcut:
+            try:
+                action = Application.action(self.actionName)
+                if action:
+                    shortcut = action.shortcut().toString()
+                    if shortcut:
+                        self.setToolTip(f"{name}  [{shortcut}]")
+                        return
+            except Exception:
+                pass
+        self.setToolTip(name)
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event.type() == QEvent.LanguageChange:
+            self.updateToolTip()
     def _load_icon(self):
         import os
         from PyQt5.QtGui import QIcon

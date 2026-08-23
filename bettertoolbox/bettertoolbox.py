@@ -770,6 +770,11 @@ class bettertoolbox(QDockWidget):
         self._krita_window_offset = None
         self._tracked_qwindow = None
 
+        # Active tool tracking state
+        self._toolbox_buttons = {}
+        self._tool_watch_retries = 0
+        self._syncing_tool = False
+
         self.installEventFilter(self)
 
         if not toolbuttons.ToolList:
@@ -786,6 +791,7 @@ class bettertoolbox(QDockWidget):
         self.topLevelChanged.connect(self.on_float_changed)
         self.dockLocationChanged.connect(self.on_dock_location_changed)
         QTimer.singleShot(0, self.activate_layout.emit)
+        QTimer.singleShot(300, self._install_tool_watcher)
         QTimer.singleShot(500, self._clamp_to_screen)
         QTimer.singleShot(1000, self.check_for_updates)
 
@@ -862,7 +868,7 @@ class bettertoolbox(QDockWidget):
             for key in category.ToolButtons:
                 toolBtn = category.ToolButtons[key]
                 toolIcon = toolBtn.icon()
-                toolText = toolBtn.toolName
+                toolText = toolBtn.displayName()
                 toolName = toolBtn.actionName
                 if toolIcon.isNull():
                     action = Application.action(toolName)
@@ -905,6 +911,9 @@ class bettertoolbox(QDockWidget):
         subtool_actionName = sender.objectName()
         for tb in toolbuttons.ToolList:
             if tb.actionName == subtool_actionName:
+                if tb.isMain == "1":
+                    tb.setChecked(True)
+                    return
                 mainToolButton = sender.parent()
                 if hasattr(mainToolButton, 'isMain') and mainToolButton.isMain != tb.isMain:
                     mainToolButton.isMain = "0"
@@ -1120,6 +1129,8 @@ class bettertoolbox(QDockWidget):
                 self._setup_long_press(tb)
                 self._update_tooltip(tb, data)
             else:
+                self.mainToolButtons.removeButton(tb)
+                tb.setChecked(False)
                 tb.hide()
 
         try:
@@ -1150,6 +1161,8 @@ class bettertoolbox(QDockWidget):
         self.apply_floating_styles()
 
         self._deferred_resize()
+
+        QTimer.singleShot(0, self._sync_active_tool)
 
         if is_float:
             QTimer.singleShot(100, self._clamp_to_screen)
@@ -1312,6 +1325,115 @@ class bettertoolbox(QDockWidget):
             pass
 
 
+    def _find_krita_toolbox(self):
+        """Locate Krita's own ToolBox docker, its buttons always follow the active tool."""
+        qwin = self.parentWidget()
+        while qwin is not None and not isinstance(qwin, QMainWindow):
+            qwin = qwin.parentWidget()
+        if qwin is None:
+            main_window = Krita.instance().activeWindow()
+            qwin = main_window.qwindow() if main_window else None
+        if qwin is not None:
+            toolbox = qwin.findChild(QDockWidget, "ToolBox")
+            if toolbox is not None:
+                return toolbox
+        for docker in Krita.instance().dockers():
+            if docker.objectName() == "ToolBox":
+                return docker
+        return None
+
+    def _install_tool_watcher(self):
+        """Mirror Krita's active tool, so shortcut driven tool changes update the highlight."""
+        try:
+            toolbox = self._find_krita_toolbox()
+            if toolbox is None:
+                if self._tool_watch_retries < 10:
+                    self._tool_watch_retries += 1
+                    QTimer.singleShot(1000, self._install_tool_watcher)
+                return
+            self._toolbox_buttons.clear()
+            for btn in toolbox.findChildren(QToolButton):
+                toolId = btn.objectName()
+                if not toolId:
+                    continue
+                self._toolbox_buttons[toolId] = btn
+                try:
+                    btn.toggled.disconnect(self._on_krita_tool_toggled)
+                except (RuntimeError, TypeError):
+                    pass
+                btn.toggled.connect(self._on_krita_tool_toggled)
+            if not self._toolbox_buttons:
+                if self._tool_watch_retries < 10:
+                    self._tool_watch_retries += 1
+                    QTimer.singleShot(1000, self._install_tool_watcher)
+                return
+            self._sync_active_tool()
+        except RuntimeError:
+            pass
+
+    def _on_krita_tool_toggled(self, checked):
+        """A Krita toolbox button switched on the active tool changed."""
+        if not checked:
+            return
+        sender = self.sender()
+        if not sender:
+            return
+        try:
+            self._highlight_tool(sender.objectName())
+        except RuntimeError:
+            pass
+
+    def _sync_active_tool(self):
+        """Highlight whichever tool Krita currently has active."""
+        if not self._toolbox_buttons:
+            return
+        for toolId, btn in list(self._toolbox_buttons.items()):
+            try:
+                if btn.isChecked():
+                    self._highlight_tool(toolId)
+                    return
+            except RuntimeError:
+                self._toolbox_buttons.pop(toolId, None)
+
+    def _highlight_tool(self, toolId):
+        """Check the docker button for toolId, promoting it out of a submenu if needed."""
+        if not toolId or self._syncing_tool:
+            return
+        target = None
+        for tb in toolbuttons.ToolList:
+            if tb.actionName == toolId:
+                target = tb
+                break
+        if target is None:
+            self._clear_highlight()
+            return
+        self._syncing_tool = True
+        try:
+            if target.isMain == "1":
+                if not target.isChecked():
+                    target.setChecked(True)
+                return
+            if not jsonMethod.loadJSON().get("swapSubTool", True):
+                self._clear_highlight()
+                return
+            for tb in toolbuttons.ToolList:
+                if tb.category == target.category and tb.isMain == "1":
+                    tb.isMain = "0"
+            target.isMain = "1"
+            self.activate_layout.emit()
+            target.setChecked(True)
+        finally:
+            self._syncing_tool = False
+
+    def _clear_highlight(self):
+        """Drop the highlight when the active tool is not shown in the docker."""
+        checked = self.mainToolButtons.checkedButton()
+        if checked is None:
+            return
+        self.mainToolButtons.setExclusive(False)
+        checked.setChecked(False)
+        self.mainToolButtons.setExclusive(True)
+
     def _setup_long_press(self, tb):
         """Attach a long-press timer to a tool button for submenu activation."""
         if hasattr(tb, '_lp_timer'):
@@ -1335,20 +1457,9 @@ class bettertoolbox(QDockWidget):
 
     def _update_tooltip(self, tb, data=None):
         """Update tool button tooltip, optionally appending its keyboard shortcut."""
-        base_name = tb.toolName
         if data is None:
             data = jsonMethod.loadJSON()
-        if data.get("showShortcuts", True):
-            try:
-                krita_action = Application.action(tb.actionName)
-                if krita_action:
-                    shortcut = krita_action.shortcut().toString()
-                    if shortcut:
-                        tb.setToolTip(f"{i18n(base_name)}  [{shortcut}]")
-                        return
-            except Exception:
-                pass
-        tb.setToolTip(i18n(base_name))
+        tb.updateToolTip(data.get("showShortcuts", True))
 
     def check_for_updates(self):
         try:
