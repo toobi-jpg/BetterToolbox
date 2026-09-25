@@ -1,6 +1,4 @@
-from PyQt5.QtWidgets import *
-from PyQt5.QtGui import *
-from PyQt5.QtCore import *
+from bettertoolbox.qt_compat import *
 from krita import *
 from bettertoolbox.json_class import json_class
 class AddToolDialog(QDialog):
@@ -19,8 +17,11 @@ class AddToolDialog(QDialog):
         self.group_label = QLabel(i18n("Assign to Group:"))
         self.group_input = QComboBox()
         self.group_input.setEditable(True)
+        from bettertoolbox.toolbuttons import ToolList
         from bettertoolbox.tool_categories import CategoryDict
-        for cat in CategoryDict().categories.keys():
+        # The groups actually in use, in toolbar order; fall back to the built-in ones
+        groups = list(dict.fromkeys(t.category for t in ToolList)) or list(CategoryDict().categories.keys())
+        for cat in groups:
             self.group_input.addItem(cat)
         if default_group:
             self.group_input.setCurrentText(default_group)
@@ -58,6 +59,7 @@ class AddToolDialog(QDialog):
                 "name": name,
                 "desc": desc,
                 "icon": icon,
+                "haystack": (name + "\x1f" + desc).lower(),  # separator no search text can span
             })
             item = QListWidgetItem()
             item.setIcon(icon)
@@ -65,25 +67,24 @@ class AddToolDialog(QDialog):
             if desc and desc != name:
                 text += f" - {desc}"
             item.setText(text)
-            item.setData(Qt.UserRole, action.objectName())
+            item.setData(Qt.ItemDataRole.UserRole, action.objectName())
             self.list_widget.addItem(item)
+        self.filter_actions(self.search_bar.text())
     def filter_actions(self, text):
+        # List rows and actions_data are appended in the same order
         text = text.lower()
-        for i in range(self.list_widget.count()):
-            item = self.list_widget.item(i)
-            action_id = item.data(Qt.UserRole)
-            action_info = next((a for a in self.actions_data if a["actionName"] == action_id), None)
-            if action_info:
-                match = text in action_info["name"].lower() or text in action_info["desc"].lower()
-                item.setHidden(not match)
+        self.list_widget.setUpdatesEnabled(False)
+        for i, info in enumerate(self.actions_data):
+            self.list_widget.item(i).setHidden(bool(text) and text not in info["haystack"])
+        self.list_widget.setUpdatesEnabled(True)
     def save_tool(self):
         selected = self.list_widget.selectedItems()
         if not selected:
             QMessageBox.warning(self, i18n("No Action Selected"), i18n("Please select an action from the list."))
             return
         item = selected[0]
-        action_name = item.data(Qt.UserRole)
-        action_info = next(a for a in self.actions_data if a["actionName"] == action_name)
+        action_name = item.data(Qt.ItemDataRole.UserRole)
+        action_info = self.actions_data[self.list_widget.row(item)]
         group = self.group_input.currentText().strip()
         if not group:
             QMessageBox.warning(self, i18n("No Group"), i18n("Please specify a group."))
@@ -116,5 +117,4 @@ class AddToolDialog(QDialog):
             presets[active_preset] = preset_tools
             updates["presets"] = presets
         jm.update_dict(updates)
-        jm.dumpJSON()
         self.accept()

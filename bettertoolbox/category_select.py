@@ -1,13 +1,16 @@
 # pyrefly: ignore [missing-import]
-from PyQt5.QtWidgets import *
-from PyQt5.QtGui import *
-from PyQt5.QtCore import *
+from bettertoolbox.qt_compat import *
 from krita import *
-import json
-from os import path
 from bettertoolbox.json_class import json_class
-from bettertoolbox.toolbuttons import ToolList
-from bettertoolbox.tool_categories import CategoryDict, category_dictionary
+
+# Icon picker entries are expensive to build (scans every action); compute them once per session
+_icon_choices = None
+
+
+def _start_drag_distance_reached(widget, event):
+    """True once the mouse has moved far enough from the press to count as a drag."""
+    start = getattr(widget, "_press_pos", None)
+    return start is not None and (event.pos() - start).manhattanLength() >= QApplication.startDragDistance()
 
 class IconSelectorDialog(QDialog):
     def __init__(self, parent=None):
@@ -20,7 +23,7 @@ class IconSelectorDialog(QDialog):
         self.scroll.setWidgetResizable(True)
         self.grid_widget = QWidget()
         self.grid = QGridLayout(self.grid_widget)
-        self.grid.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+        self.grid.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
         self.scroll.setWidget(self.grid_widget)
         self.layout.addWidget(self.scroll)
         
@@ -40,6 +43,25 @@ class IconSelectorDialog(QDialog):
         self.populate_icons()
         
     def populate_icons(self):
+        global _icon_choices
+        if _icon_choices is None:
+            _icon_choices = self._collect_icons()
+        row = 0
+        col = 0
+        max_cols = 10
+        for name, icon in _icon_choices:
+            btn = QToolButton()
+            btn.setIcon(icon)
+            btn.setIconSize(QSize(24, 24))
+            btn.setToolTip(name)
+            btn.clicked.connect(lambda checked, n=name: self.icon_selected(n))
+            self.grid.addWidget(btn, row, col)
+            col += 1
+            if col >= max_cols:
+                col = 0
+                row += 1
+
+    def _collect_icons(self):
         main_window = Krita.instance().activeWindow()
         actions = []
         if main_window:
@@ -62,30 +84,17 @@ class IconSelectorDialog(QDialog):
             if not a.icon().isNull() and a.objectName():
                 icon_set.add(a.objectName())
                 
-        sorted_icons = sorted(list(icon_set))
-        
-        row = 0
-        col = 0
-        max_cols = 10
-        for name in sorted_icons:
+        choices = []
+        for name in sorted(icon_set):
             icon = Application.icon(name)
             if icon.isNull():
                 action = Application.action(name)
                 if action and not action.icon().isNull():
                     icon = action.icon()
-                    
             if not icon.isNull():
-                btn = QToolButton()
-                btn.setIcon(icon)
-                btn.setIconSize(QSize(24, 24))
-                btn.setToolTip(name)
-                btn.clicked.connect(lambda checked, n=name: self.icon_selected(n))
-                self.grid.addWidget(btn, row, col)
-                col += 1
-                if col >= max_cols:
-                    col = 0
-                    row += 1
-                    
+                choices.append((name, icon))
+        return choices
+
     def icon_selected(self, name):
         self.selected_icon_name = name
         self.accept()
@@ -109,7 +118,7 @@ class CategorySelect(QWidget):
     tools_changed = pyqtSignal()
     def __init__(self):
         super().__init__()
-        self.setWindowModality(Qt.ApplicationModal)
+        self.setWindowModality(Qt.WindowModality.ApplicationModal)
         self.setLayout(QVBoxLayout())
         self.preset_layout = QHBoxLayout()
         self.preset_label = QLabel(i18n("Active Preset:"))
@@ -117,12 +126,15 @@ class CategorySelect(QWidget):
         self.refresh_presets()
         self.preset_dropbox.currentTextChanged.connect(self.on_preset_changed)
         self.save_preset_btn = QPushButton(i18n("Save Preset"))
-        self.save_preset_btn.clicked.connect(self.save_preset)
+        self.save_preset_btn.clicked.connect(lambda: self.save_preset())
+        self.save_preset_as_btn = QPushButton(i18n("Save As..."))
+        self.save_preset_as_btn.clicked.connect(self.save_preset_as)
         self.remove_preset_btn = QPushButton(i18n("Remove Preset"))
         self.remove_preset_btn.clicked.connect(self.remove_preset)
         self.preset_layout.addWidget(self.preset_label)
         self.preset_layout.addWidget(self.preset_dropbox)
         self.preset_layout.addWidget(self.save_preset_btn)
+        self.preset_layout.addWidget(self.save_preset_as_btn)
         self.preset_layout.addWidget(self.remove_preset_btn)
         self.layout().addLayout(self.preset_layout)
         self.scroll = QScrollArea()
@@ -133,7 +145,7 @@ class CategorySelect(QWidget):
         self.scroll_content.dragMoveEvent = self.rowDragEnterEvent
         self.scroll_content.dropEvent = self.rowDropEvent
         self.subtool_column = QVBoxLayout(self.scroll_content)
-        self.subtool_column.setAlignment(Qt.AlignTop)
+        self.subtool_column.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.scroll.setWidget(self.scroll_content)
         self.layout().addWidget(self.scroll)
         self.config_layout = QHBoxLayout()
@@ -177,7 +189,7 @@ class CategorySelect(QWidget):
             self.containers[category] = container
             row = GroupRow(category, container, self.subtool_column, self.open_add_tool_dialog, self.remove_category)
             self.subtool_column.addWidget(row)
-        for ToolBtn in ToolList:
+        for ToolBtn in sorted(ToolList, key=lambda t: t.isMain != "1"):
             tool_panel = ToolPanel(ToolBtn)
             if ToolBtn.category in self.containers:
                 if ToolBtn.isMain == "1":
@@ -190,16 +202,27 @@ class CategorySelect(QWidget):
         if not preset_name: return
         jm = json_class()
         jm.update_dict({"active_preset": preset_name})
-        jm.dumpJSON()
         from bettertoolbox import toolbuttons
         toolbuttons.ToolList = toolbuttons.load_tool_list()
         self.rebuild_rows()
         self.tools_changed.emit()
-    def save_preset(self, show_msg=True):
-        preset_name = self.preset_dropbox.currentText()
+    def save_preset_as(self):
+        name, ok = QInputDialog.getText(self, i18n("Save Preset As"), i18n("Preset name:"))
+        name = name.strip()
+        if not ok or not name:
+            return
+        if name in json_class().loadJSON().get("presets", {}):
+            reply = QMessageBox.question(self, i18n("Overwrite Preset"),
+                                         i18n("A preset with this name already exists. Replace it?"),
+                                         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+        self.save_preset(preset_name=name)
+    def save_preset(self, show_msg=True, preset_name=None):
+        preset_name = preset_name or self.preset_dropbox.currentText()
         if not preset_name:
             if show_msg:
-                QMessageBox.warning(self, "No Name", "Please enter a preset name.")
+                QMessageBox.warning(self, i18n("No Name"), i18n("Please enter a preset name."))
             return
         new_tool_data = []
         for i in range(self.subtool_column.count()):
@@ -229,32 +252,31 @@ class CategorySelect(QWidget):
         presets = data.get("presets", {})
         presets[preset_name] = new_tool_data
         jm.update_dict({"presets": presets, "active_preset": preset_name})
-        jm.dumpJSON()
         self.refresh_presets()
         self.tools_changed.emit()
         if show_msg:
-            QMessageBox.information(self, "Saved", f"Preset '{preset_name}' saved.")
+            QMessageBox.information(self, i18n("Saved"), i18n("Preset '%s' saved.") % preset_name)
     def remove_preset(self):
         preset_name = self.preset_dropbox.currentText()
         if not preset_name or preset_name == "Default":
             QMessageBox.warning(self, i18n("Cannot Remove"), i18n("You cannot remove the 'Default' preset."))
             return
         reply = QMessageBox.question(self, i18n("Confirm Delete"), 
-                                     i18n(f"Are you sure you want to delete the preset '{preset_name}'?"), 
-                                     QMessageBox.Yes | QMessageBox.No)
-        if reply == QMessageBox.Yes:
+                                     i18n("Are you sure you want to delete the preset '%s'?") % preset_name,
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply == QMessageBox.StandardButton.Yes:
             jm = json_class()
             data = jm.loadJSON()
             presets = data.get("presets", {})
             if preset_name in presets:
                 del presets[preset_name]
                 jm.update_dict({"presets": presets, "active_preset": "Default"})
-                jm.dumpJSON()
                 self.refresh_presets()
                 self.on_preset_changed()
-                QMessageBox.information(self, i18n("Deleted"), i18n(f"Preset '{preset_name}' has been deleted."))
+                QMessageBox.information(self, i18n("Deleted"), i18n("Preset '%s' has been deleted.") % preset_name)
     def add_new_category(self):
         text, ok = QInputDialog.getText(self, i18n("New Group"), i18n("Enter new group name:"))
+        text = text.strip()
         if ok and text and text not in self.containers:
             new_container = Container(text)
             self.containers[text] = new_container
@@ -268,7 +290,7 @@ class CategorySelect(QWidget):
         from bettertoolbox.add_tool import AddToolDialog
         from bettertoolbox.toolbuttons import ToolButton
         dialog = AddToolDialog(self, default_group=target_group)
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             from bettertoolbox import toolbuttons
             toolbuttons.ToolList = toolbuttons.load_tool_list()
             self.rebuild_rows()
@@ -280,25 +302,31 @@ class CategorySelect(QWidget):
     def rowDropEvent(self, event):
         source = event.source()
         if isinstance(source, GroupRow):
-            pos = event.pos()
+            pos = event_pos(event)
             index = 0
             for i in range(self.subtool_column.count()):
                 w = self.subtool_column.itemAt(i).widget()
-                if w and pos.y() > w.y() + w.height() / 2:
-                    index = i + 1
+                if w is None or w is source:
+                    continue
+                if pos.y() > w.y() + w.height() / 2:
+                    index += 1
+            self.subtool_column.removeWidget(source)
             self.subtool_column.insertWidget(index, source)
-            event.setDropAction(Qt.MoveAction)
+            event.setDropAction(Qt.DropAction.MoveAction)
             event.accept()
 class DragHandle(QLabel):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setPixmap(Application.icon("format-justify-fill").pixmap(16, 16))
-        self.setCursor(Qt.SizeVerCursor)
+        self.setCursor(Qt.CursorShape.SizeVerCursor)
         self.setFixedSize(24, 40)
-        self.setAlignment(Qt.AlignCenter)
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setStyleSheet("background: rgba(255,255,255,10); border-radius: 4px;")
+    def mousePressEvent(self, event):
+        self._press_pos = event.pos()
+        super().mousePressEvent(event)
     def mouseMoveEvent(self, event):
-        if event.buttons() == Qt.LeftButton:
+        if event.buttons() == Qt.MouseButton.LeftButton and _start_drag_distance_reached(self, event):
             drag = QDrag(self.parent())
             mimeData = QMimeData()
             mimeData.setData("application/x-grouprow", b"1")
@@ -307,7 +335,7 @@ class DragHandle(QLabel):
             drag.setPixmap(pixmap)
             drag.setHotSpot(event.pos())
             self.parent().setOpacity(0.5)
-            drag.exec_(Qt.MoveAction)
+            drag.exec(Qt.DropAction.MoveAction)
             self.parent().setOpacity(1.0)
 class GroupRow(QFrame):
     def __init__(self, category, container, parent_layout, add_callback, remove_callback=None):
@@ -316,7 +344,7 @@ class GroupRow(QFrame):
         self.container = container
         self.parent_layout = parent_layout
         self.remove_callback = remove_callback
-        self.setFrameShape(QFrame.StyledPanel)
+        self.setFrameShape(QFrame.Shape.StyledPanel)
         self.setStyleSheet("GroupRow { background: rgba(0,0,0,20); border-radius: 6px; margin-bottom: 2px; }")
         self.main_layout = QHBoxLayout(self)
         self.main_layout.setContentsMargins(4, 4, 4, 4)
@@ -335,13 +363,15 @@ class GroupRow(QFrame):
         self.main_layout.addWidget(self.remove_btn)
     def remove_group(self):
         msg = QMessageBox(self)
-        msg.setIcon(QMessageBox.Warning)
+        msg.setIcon(QMessageBox.Icon.Warning)
         msg.setWindowTitle(i18n("Remove Group"))
         msg.setText(i18n("Are you sure you want to remove the group '%s'?") % self.category)
         msg.setInformativeText(i18n("This will remove all tools within this group from the current preset."))
-        msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-        msg.setDefaultButton(QMessageBox.No)
-        if msg.exec_() == QMessageBox.Yes:
+        msg.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        msg.setDefaultButton(QMessageBox.StandardButton.No)
+        confirmed = msg.exec() == QMessageBox.StandardButton.Yes
+        msg.deleteLater()
+        if confirmed:
             if self.remove_callback:
                 self.remove_callback(self.category)
             self.setParent(None)
@@ -356,17 +386,20 @@ class Container(QFrame):
     def __init__(self, name):
         super().__init__()
         self.name = name
-        self.setFrameShape(QFrame.StyledPanel)
-        self.setFrameShadow(QFrame.Sunken)
+        self.setFrameShape(QFrame.Shape.StyledPanel)
+        self.setFrameShadow(QFrame.Shadow.Sunken)
         self.setLayout(QHBoxLayout())
-        self.layout().setAlignment(Qt.AlignLeft)
+        self.layout().setAlignment(Qt.AlignmentFlag.AlignLeft)
         self.setAcceptDrops(True)
     def dragEnterEvent(self, event):
-        event.accept()
+        if isinstance(event.source(), ToolPanel):
+            event.accept()
+        else:
+            event.ignore()
     def dropEvent(self, event):
         source = event.source()
         if isinstance(source, ToolPanel):
-            pos = event.pos()
+            pos = event_pos(event)
             layout = self.layout()
             tools = []
             separator = None
@@ -392,7 +425,7 @@ class Container(QFrame):
                 layout.addWidget(separator)
                 for tool in tools[1:]:
                     layout.addWidget(tool)
-            event.setDropAction(Qt.MoveAction)
+            event.setDropAction(Qt.DropAction.MoveAction)
             event.accept()
     def normalize_layout(self):
         layout = self.layout()
@@ -419,15 +452,15 @@ class QVSeparationLine(QFrame):
     def __init__(self):
         super().__init__()
         self.setFixedWidth(20)
-        self.setFrameShape(QFrame.VLine)
-        self.setFrameShadow(QFrame.Sunken)
+        self.setFrameShape(QFrame.Shape.VLine)
+        self.setFrameShadow(QFrame.Shadow.Sunken)
 class ToolPanel(QToolButton):
     def __init__(self, tool_btn):
         super().__init__()
         self.tool_btn = tool_btn
         self.setIcon(tool_btn.icon())
         self.setToolTip(tool_btn.displayName())
-        self.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self.show_context_menu)
     def showEvent(self, event):
         super().showEvent(event)
@@ -441,7 +474,7 @@ class ToolPanel(QToolButton):
         menu = QMenu(self)
         remove_action = menu.addAction(i18n("Remove Tool"))
         custom_icon_action = menu.addAction(i18n("Change icon"))
-        action = menu.exec_(self.mapToGlobal(pos))
+        action = menu.exec(self.mapToGlobal(pos))
         if action == remove_action:
             container = self.parentWidget()
             self.setParent(None)
@@ -450,7 +483,7 @@ class ToolPanel(QToolButton):
                 container.normalize_layout()
         elif action == custom_icon_action:
             dialog = IconSelectorDialog(self)
-            if dialog.exec_() == QDialog.Accepted:
+            if dialog.exec() == QDialog.DialogCode.Accepted:
                 if dialog.selected_icon_name:
                     if dialog.selected_icon_name == "DEFAULT":
                         from bettertoolbox.toolbuttons import get_default_tools
@@ -468,13 +501,16 @@ class ToolPanel(QToolButton):
                     self.setIcon(self.tool_btn.icon())
             dialog.deleteLater()
         menu.deleteLater()
+    def mousePressEvent(self, event):
+        self._press_pos = event.pos()
+        super().mousePressEvent(event)
     def mouseMoveEvent(self, event):
-        if event.buttons() != Qt.LeftButton:
+        if event.buttons() != Qt.MouseButton.LeftButton or not _start_drag_distance_reached(self, event):
             return
         drag = QDrag(self)
         mimeData = QMimeData()
         drag.setMimeData(mimeData)
         container = self.parentWidget()
-        drag.exec_(Qt.MoveAction)
+        drag.exec(Qt.DropAction.MoveAction)
         if isinstance(container, Container):
             container.normalize_layout()

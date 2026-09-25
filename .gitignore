@@ -1,0 +1,4 @@
+# User settings are created on first run; never ship them in a release
+bettertoolbox/data.json*
+__pycache__/
+*.pyc
