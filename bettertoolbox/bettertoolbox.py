@@ -63,6 +63,7 @@ class Menu(QMenu):
         self.setMouseTracking(True)
     def showEvent(self, event):
         super().showEvent(event)
+        self.adjustSize()
         wh = self.parent_btn.windowHandle()
         if wh:
             self.windowHandle().setScreen(wh.screen())
@@ -911,8 +912,8 @@ class bettertoolbox(QDockWidget):
         action = Application.action(actionName)
         return action if action is not None and action.isCheckable() else None
 
-    def linkMenu(self):
-        subMenu = self.sender()
+    def linkMenu(self, menu=None):
+        subMenu = menu if menu is not None else self.sender()
         if not subMenu:
             return
         if subMenu.isEmpty():
@@ -958,6 +959,7 @@ class bettertoolbox(QDockWidget):
                         action.setIcon(krita_action.icon())
         for action in subMenu.actions():
             action.setIconVisibleInMenu(True)
+        subMenu.adjustSize()
 
     def swapToolButton(self):
         sender = self.sender()
@@ -1163,6 +1165,11 @@ class bettertoolbox(QDockWidget):
         self.main_layout.addWidget(self.tools_container)
 
         category_dictionary.categories.clear()
+        for model in toolbuttons.ToolList:
+            if model.category not in category_dictionary.categories:
+                category_dictionary.categories[model.category] = ToolCategory(model.category)
+            category_dictionary.categories[model.category].addTool(model)
+
         iconSize = data.get("iconSize", 18)
         btnSize = data.get("btnSize", 28)
         if not is_float:
@@ -1170,9 +1177,6 @@ class bettertoolbox(QDockWidget):
 
         old_views, self._views = self._views, {}
         for model in toolbuttons.ToolList:
-            if model.category not in category_dictionary.categories:
-                category_dictionary.categories[model.category] = ToolCategory(model.category)
-            category_dictionary.categories[model.category].addTool(model)
             toggle = self._toggle_action(model.actionName)
             tb = old_views.pop(model, None)
             if tb is None:
@@ -1193,8 +1197,6 @@ class bettertoolbox(QDockWidget):
                 if toggle is None:
                     self.mainToolButtons.addButton(tb)
                 else:
-                    # A mode toggle (e.g. eraser) isn't a tool: show its own on/off state,
-                    # outside the exclusive "active tool" group
                     self.mainToolButtons.removeButton(tb)
                     tb.setChecked(toggle.isChecked())
                 self.tools_layout.addWidget(tb)
@@ -1207,6 +1209,7 @@ class bettertoolbox(QDockWidget):
                 subMenu = Menu(tb)
                 subMenu.setWindowFlags(Qt.WindowType.Popup)
                 tb._subMenu = subMenu
+                self.linkMenu(subMenu)
                 tb._subMenu.aboutToShow.connect(self.linkMenu)
                 tb.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
                 try:
@@ -1539,7 +1542,14 @@ class bettertoolbox(QDockWidget):
             return
         if hasattr(btn, '_subMenu') and btn._subMenu:
             btn._lp_active = True
-            btn._subMenu.exec(btn.mapToGlobal(QPoint(btn.width(), 0)))
+            try:
+                btn._subMenu.exec(btn.mapToGlobal(QPoint(btn.width(), 0)))
+            finally:
+                btn.setDown(False)
+                btn._lp_active = False
+                btn.setAttribute(Qt.WidgetAttribute.WA_UnderMouse, False)
+                QApplication.sendEvent(btn, QEvent(QEvent.Type.Leave))
+                btn.update()
 
     def _update_tooltip(self, tb, data=None):
         """Update tool button tooltip, optionally appending its keyboard shortcut."""
@@ -1755,7 +1765,14 @@ class bettertoolbox(QDockWidget):
                     obj._lp_timer.stop()
                     if obj._lp_active:
                         obj._lp_active = False
-                        return True  # Swallow the release so it doesn't activate the tool
+                        obj.setDown(False)
+                        obj.setAttribute(Qt.WidgetAttribute.WA_UnderMouse, False)
+                        QApplication.sendEvent(obj, QEvent(QEvent.Type.Leave))
+                        obj.update()
+                        return True
+            elif event.type() == QEvent.Type.Leave:
+                if hasattr(obj, '_lp_timer'):
+                    obj._lp_timer.stop()
 
         # Floating drag handling — press and hold the settings button to move the toolbox
         if self.isFloating() and obj == self.settings_btn:
